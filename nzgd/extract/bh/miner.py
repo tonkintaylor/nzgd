@@ -90,7 +90,7 @@ def extract_soil_report(description: str) -> set[str]:
 
     """
     soil_types = {"SAND", "SILT", "CLAY", "GRAVEL", "COBBLES", "BOULDERS"}
-    return soil_types & {word.strip(",.;") for word in description.split()}
+    return soil_types & {word.strip(",.;:") for word in description.split()}
 
 
 def extract_spt_value(text: str) -> int | None:
@@ -194,7 +194,8 @@ def borehole_id(report: Path) -> int:
     # Borehole PDF names have format Borehole_<Borehole ID>_(Raw/Rep)01.pdf
     if match := re.search(r"_(\d+)_", report.stem):
         return int(match.group(1))
-    raise ValueError(f"Report name {report.stem} lacks proper structure")
+    warnings.warn(f"Report name {report.stem} lacks proper structure")
+    return -1
 
 
 def process_borehole(report: Path) -> SPTReport:
@@ -453,7 +454,7 @@ def _analyze_text_objects(
     spt_values, extracted_soil_depths, soil_types = [], [], []
 
     try:
-        depth_node = next(
+        depth_nodes = [
             node
             for page in text_objects
             for node in page
@@ -461,7 +462,8 @@ def _analyze_text_objects(
             # optionally followed by "(m)" with or without spaces in
             # between.
             if re.match(r"(depth|length)\s*(\(m\))?", node.text.lower())
-        )
+        ]
+        depth_node = depth_nodes[-1]
     except StopIteration as exc:
         raise ValueError(f"Depth column not found in {report}") from exc
 
@@ -495,15 +497,20 @@ def _analyze_text_objects(
                     },
                 )
     if not spt_values:
-        raise ValueError(f"No SPT values found in {report}")
-
-    df = pd.DataFrame(spt_values)
-    min_depth = df["Depth"].min()
-    max_depth = df["Depth"].max()
-    if min_depth < 0 or max_depth > 70:
-        raise ValueError(
-            f"Invalid depth calculation detected (minimum depth = {min_depth}, max depth = {max_depth}).",
+        warnings.warn(
+            f"No SPT values found in {report}, proceeding with soil data only"
         )
+        # Create empty DataFrame with correct columns
+        df = pd.DataFrame(columns=["Depth", "N"])
+    else:
+        df = pd.DataFrame(spt_values)
+        min_depth = df["Depth"].min()
+        max_depth = df["Depth"].max()
+        if min_depth < 0 or max_depth > 70:
+            raise ValueError(
+                f"Invalid depth calculation detected (minimum depth = {min_depth}, max depth = {max_depth}).",
+            )
+
     soil_measurements = pd.DataFrame(
         {"top_depth": extracted_soil_depths, "soil_types": soil_types},
     )
