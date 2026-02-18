@@ -160,9 +160,7 @@ def round_to_nearest_005(value: float) -> float:
     return round(value * 20) / 20
 
 
-def find_termination_depth(
-        spt_measurements: pd.DataFrame,
-        soil_depths: list[float],
+def find_termination_depths(
         text_objects: list[list[Any]] | None = None,
 ) -> float | None:
     """Find the termination depth of the borehole.
@@ -174,19 +172,15 @@ def find_termination_depth(
 
     Parameters
     ----------
-    spt_measurements : pd.DataFrame
-        DataFrame containing SPT measurements with Depth column.
-    soil_depths : list[float]
-        List of soil layer top depths.
     text_objects : list[list[Any]], optional
         List of text objects from PDF pages to search for termination depth.
 
     Returns
     -------
-    float | None
+    list[list[float]]
         The termination depth of the borehole, or None if not found or invalid.
     """
-    termination_depth = 0.0
+    termination_depths = []
 
     # Search for termination patterns in text objects first
     if text_objects:
@@ -198,27 +192,24 @@ def find_termination_depth(
             r"terminated at\s+(\d+\.?\d*)\s*m"
         ]
 
-        for page in text_objects:
+        for pp, page in enumerate(text_objects):
             for text_obj in page:
                 if hasattr(text_obj, "text"):
                     text = text_obj.text.strip()
                     # Try each termination pattern
+                    page_depths = []
                     for pattern in termination_patterns:
                         match = re.search(pattern, text, re.IGNORECASE)
                         if match:
                             try:
                                 found_depth = float(match.group(1))
-                                termination_depth = max(termination_depth, found_depth)
+                                page_depths.append(found_depth)
                             except ValueError:
                                 continue
-
-    # Check termination depth is deeper than other soil layer depths
-    if termination_depth < max(soil_depths):
-        print(
-            f"Warning: Termination depth {termination_depth}m is shallower than max soil depth {max(soil_depths)}m."
-        )
-        termination_depth = None
-    return termination_depth
+                    if page_depths:
+                        page_depth = max(page_depths)
+                        termination_depths.append([pp, page_depth])
+    return termination_depths
 
 
 def extract_soil_report(description: str) -> list[str]:
@@ -604,11 +595,13 @@ def _analyze_text_objects(
     """
     (
         spt_values,
+        extracted_gi_ids,
         extracted_soil_depths,
         soil_types,
         extracted_soil_descriptions,
         geological_units,
     ) = (
+        [],
         [],
         [],
         [],
@@ -636,7 +629,17 @@ def _analyze_text_objects(
             if re.search(LABEL_RE, node.text.lower()):
                 hammer_efficiency = get_ratio_near(node, page)
 
-    for page in text_objects:
+    # Find termination depth
+    termination_depths = find_termination_depths(text_objects)  # possibly move this outside function?
+    termination_depths = np.array(termination_depths)
+    if len(termination_depths) >= 2:
+        termination_pages = termination_depths[:, 0]
+    else:
+        termination_pages = np.array([len(text_objects) + 1])
+    gi_ids = np.searchsorted(termination_pages, np.arange(len(text_objects)))
+
+    for pp, page in enumerate(text_objects):
+        gi_id = gi_ids[pp]
         m = None
         c = None
         for dd, depth_node in enumerate(depth_nodes):
@@ -649,6 +652,7 @@ def _analyze_text_objects(
         for node in sorted(page, key=lambda n: n.yc, reverse=True):
             depth = m * node.yc + c
             if soil_report := extract_soil_report(node.text):
+                extracted_gi_ids.append(gi_id)
                 extracted_soil_depths.append(depth)
                 soil_types.append(soil_report)
                 # Also store the full description
@@ -664,6 +668,7 @@ def _analyze_text_objects(
             if n is not None:
                 spt_values.append(
                     {
+                        "GI_ID": gi_id,
                         "Depth": round(depth, 2),
                         "N": n,
                     },
@@ -683,8 +688,6 @@ def _analyze_text_objects(
                 f"Invalid depth calculation detected (minimum depth = {min_depth}, max depth = {max_depth}).",
             )
 
-    # Find termination depth
-    termination_depth = find_termination_depth(df, extracted_soil_depths, text_objects)
 
     # Create depth ranges and clean descriptions
 
@@ -692,20 +695,26 @@ def _analyze_text_objects(
                             description in extracted_soil_descriptions]
     main_units = [soil_type_set[0] for soil_type_set in soil_types]
     top_depths = [round_to_nearest_005(float(top_depth)) for top_depth in extracted_soil_depths]
-
-    top_depths.append(termination_depth)
-    main_units.append("")
-    geological_units.append("")
-    cleaned_descriptions.append("")
+    for tt, tds in enumerate(termination_depths):
+        _termination_page, termination_depth = tds
+        # termination_page = int(termination_page)
+        gi_id = tt
+        extracted_gi_ids.append(gi_id)
+        top_depths.append(termination_depth)
+        main_units.append("")
+        geological_units.append("")
+        cleaned_descriptions.append("")
 
     soil_measurements = pd.DataFrame(
         {
+            "GI_ID": extracted_gi_ids,
             "Depth": top_depths,
             "Soil Description": cleaned_descriptions,
             "Main Unit": main_units,
             "Geological Unit": geological_units,
         },
     )
+    soil_measurements = soil_measurements.sort_values(by=["GI_ID", "Depth"])
 
     return SPTReport(
         borehole_id=borehole_id(report),
