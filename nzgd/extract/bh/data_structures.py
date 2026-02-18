@@ -65,4 +65,4 @@ class SPTReport:
     """The SPT record. A data frame with columns Depth, and N."""
 
     soil_measurements: pd.DataFrame
-    """The SPT soil measurements. A dataframe with columns 'top_depth', and 'soil_types'"""
+    """The SPT soil measurements. A dataframe with columns 'top_depth', 'soil_types', and 'full_description'"""

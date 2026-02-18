@@ -248,6 +248,8 @@ class SoilMeasurements(BaseModel):
     top_depth = FloatField()
     """float: The top depth of the soil layer."""
 
+    full_description = TextField(null=True)
+    """str: The full text description of the soil layer."""
 
 class SoilMeasurementSoilType(BaseModel):
     """Represents a junction table for soil measurements and soil types."""
