@@ -75,7 +75,153 @@ app = typer.Typer()
 warnings.simplefilter("error", np.exceptions.RankWarning)
 
 
-def extract_soil_report(description: str) -> set[str]:
+def extract_geological_unit(description: str) -> str | None:
+    """Extract geological unit from text in parentheses.
+
+    Parameters
+    ----------
+    description : str
+        The soil description text to search.
+
+    Returns
+    -------
+    str | None
+        The geological unit found in parentheses, or None if not found.
+
+    Examples
+    --------
+    >>> extract_geological_unit("SAND: Brown fine sand (Christchurch Formation)")
+    'Christchurch Formation'
+    >>> extract_geological_unit("CLAY: Soft grey clay")
+    None
+    """
+    # Look for text in parentheses, typically at the end of the description
+    match = re.search(r"\(([^)]+)\)", description)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def remove_geological_unit_from_description(description: str) -> str:
+    """Remove geological unit text (in parentheses) and any text after it from soil description.
+
+    Parameters
+    ----------
+    description : str
+        The soil description text to clean.
+
+    Returns
+    -------
+    str
+        The soil description with geological unit text and any following text removed.
+
+    Examples
+    --------
+    >>> remove_geological_unit_from_description("SAND: Brown fine sand (Christchurch Formation)")
+    'SAND: Brown fine sand'
+    >>> remove_geological_unit_from_description("SAND: Brown fine sand (Christchurch Formation) additional text")
+    'SAND: Brown fine sand'
+    >>> remove_geological_unit_from_description("CLAY: Soft grey clay")
+    'CLAY: Soft grey clay'
+    """
+    # Find text in parentheses (geological unit)
+    match = re.search(r"\([^)]+\)", description)
+    if match:
+        # Remove the geological unit in parentheses and everything after it
+        cleaned = description[:match.start()].strip()
+        return cleaned
+    else:
+        # No geological unit found, return original description
+        return description.strip()
+
+
+def round_to_nearest_005(value: float) -> float:
+    """Round a depth value to the nearest 0.05.
+
+    Parameters
+    ----------
+    value : float
+        The depth value to round.
+
+    Returns
+    -------
+    float
+        The depth value rounded to the nearest 0.05.
+
+    Examples
+    --------
+    >>> round_to_nearest_005(1.23)
+    1.25
+    >>> round_to_nearest_005(2.47)
+    2.45
+    >>> round_to_nearest_005(0.03)
+    0.05
+    """
+    return round(value * 20) / 20
+
+
+def find_termination_depth(
+        spt_measurements: pd.DataFrame,
+        soil_depths: list[float],
+        text_objects: list[list[Any]] | None = None,
+) -> float | None:
+    """Find the termination depth of the borehole.
+
+    Searches for various termination patterns in the text objects:
+    - "Borehole terminated at X m"
+    - "Test pit terminated at X m"
+    - "terminated at X m"
+
+    Parameters
+    ----------
+    spt_measurements : pd.DataFrame
+        DataFrame containing SPT measurements with Depth column.
+    soil_depths : list[float]
+        List of soil layer top depths.
+    text_objects : list[list[Any]], optional
+        List of text objects from PDF pages to search for termination depth.
+
+    Returns
+    -------
+    float | None
+        The termination depth of the borehole, or None if not found or invalid.
+    """
+    termination_depth = 0.0
+
+    # Search for termination patterns in text objects first
+    if text_objects:
+        # Define termination patterns to search for
+        termination_patterns = [
+            r"Borehole terminated at\s+(\d+\.?\d*)\s*m",
+            r"Test pit terminated at\s+(\d+\.?\d*)\s*m",
+            r"Hand auger terminated at\s+(\d+\.?\d*)\s*m",
+            r"terminated at\s+(\d+\.?\d*)\s*m"
+        ]
+
+        for page in text_objects:
+            for text_obj in page:
+                if hasattr(text_obj, "text"):
+                    text = text_obj.text.strip()
+                    # Try each termination pattern
+                    for pattern in termination_patterns:
+                        match = re.search(pattern, text, re.IGNORECASE)
+                        if match:
+                            try:
+                                found_depth = float(match.group(1))
+                                termination_depth = max(termination_depth, found_depth)
+                            except ValueError:
+                                continue
+
+    # Check termination depth is deeper than other soil layer depths
+    if termination_depth < max(soil_depths):
+        print(
+            f"Warning: Termination depth {termination_depth}m is shallower than max soil depth {max(soil_depths)}m."
+        )
+        termination_depth = None
+    return termination_depth
+
+
+def extract_soil_report(description: str) -> list[str]:
     """Extract soil types mentioned in a description.
 
     Parameters
@@ -89,8 +235,13 @@ def extract_soil_report(description: str) -> set[str]:
         A set of identified soil types from the input.
 
     """
+    # consider FILL
     soil_types = {"SAND", "SILT", "CLAY", "GRAVEL", "COBBLES", "BOULDERS"}
-    return soil_types & {word.strip(",.;:") for word in description.split()}
+    return [
+        word.strip(",.;:")
+        for word in description.split()
+        if word.strip(",.;:") in soil_types
+    ]
 
 
 def extract_spt_value(text: str) -> int | None:
@@ -451,7 +602,19 @@ def _analyze_text_objects(
         If depth column or SPT values are not found.
 
     """
-    spt_values, extracted_soil_depths, soil_types = [], [], []
+    (
+        spt_values,
+        extracted_soil_depths,
+        soil_types,
+        extracted_soil_descriptions,
+        geological_units,
+    ) = (
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
 
     try:
         depth_nodes = [
@@ -463,7 +626,7 @@ def _analyze_text_objects(
             # between.
             if re.match(r"(depth|length)\s*(\(m\))?", node.text.lower())
         ]
-        depth_node = depth_nodes[-1]
+
     except StopIteration as exc:
         raise ValueError(f"Depth column not found in {report}") from exc
 
@@ -474,15 +637,24 @@ def _analyze_text_objects(
                 hammer_efficiency = get_ratio_near(node, page)
 
     for page in text_objects:
-        try:
-            m, c = extract_depth_scale(depth_node, page)
-        except ValueError:
+        m = None
+        c = None
+        for dd, depth_node in enumerate(depth_nodes):
+            try:
+                m, c = extract_depth_scale(depth_node, page)
+            except ValueError:
+                continue
+        if m is None:
             continue
         for node in sorted(page, key=lambda n: n.yc, reverse=True):
             depth = m * node.yc + c
             if soil_report := extract_soil_report(node.text):
                 extracted_soil_depths.append(depth)
                 soil_types.append(soil_report)
+                # Also store the full description
+                extracted_soil_descriptions.append(node.text.strip())
+                # Extract geological unit
+                geological_units.append(extract_geological_unit(node.text))
 
         for node in page:
             depth = m * node.yc + c
@@ -511,10 +683,30 @@ def _analyze_text_objects(
                 f"Invalid depth calculation detected (minimum depth = {min_depth}, max depth = {max_depth}).",
             )
 
+    # Find termination depth
+    termination_depth = find_termination_depth(df, extracted_soil_depths, text_objects)
+
+    # Create depth ranges and clean descriptions
+
+    cleaned_descriptions = [remove_geological_unit_from_description(description) for
+                            description in extracted_soil_descriptions]
+    main_units = [soil_type_set[0] for soil_type_set in soil_types]
+    top_depths = [round_to_nearest_005(float(top_depth)) for top_depth in extracted_soil_depths]
+
+    top_depths.append(termination_depth)
+    main_units.append("")
+    geological_units.append("")
+    cleaned_descriptions.append("")
+
     soil_measurements = pd.DataFrame(
-        {"top_depth": extracted_soil_depths, "soil_types": soil_types},
+        {
+            "Depth": top_depths,
+            "Soil Description": cleaned_descriptions,
+            "Main Unit": main_units,
+            "Geological Unit": geological_units,
+        },
     )
-    print()
+
     return SPTReport(
         borehole_id=borehole_id(report),
         nzgd_id=borehole_id(report),
