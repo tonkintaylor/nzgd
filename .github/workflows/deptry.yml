@@ -7,10 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Setup the minimum required python distribution
+      # Setup the python version pinned in .python-version
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13.17'
       - run: pip install -r requirements.txt
       # Install deptry
       - run: pip install deptry
