@@ -9,9 +9,8 @@ from pathlib import Path
 import natsort
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
 from nzgd_data_extraction import info
+from tqdm import tqdm
 
 
 class NewSectionStartFlag(enum.StrEnum):
