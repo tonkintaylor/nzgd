@@ -237,7 +237,7 @@ class LocaDiagnostics:
     found_match: bool | None = None
     matched_loca_id: str | None = None
     all_loca_ids: str | None = None
-    warned_no_InvestigationID: bool = False
+    warned_no_InvestigationID: bool = False  # noqa: N815
     warned_no_match: bool = False
 
     def to_log_row(self) -> dict[str, Any]:
@@ -622,7 +622,7 @@ def _load_index_data() -> pd.DataFrame:
         return pd.read_csv(INDEX_FILE_PATH, low_memory=False)
     except FileNotFoundError:
         warnings.warn(f"Index file not found at {INDEX_FILE_PATH}")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         warnings.warn(f"Failed to load index file {INDEX_FILE_PATH}: {exc}")
     return pd.DataFrame(columns=["nzgd_id", "InvestigationId"])
 
@@ -1214,7 +1214,7 @@ def process_borehole(borehole_id: int, report: Path) -> BoreholeProcessingResult
                             ),
                         ).group(1),
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             warnings.warn(f"Could not extract efficiency from {report}: {e}")
 
     # Check if any meaningful data was extracted
@@ -1330,7 +1330,7 @@ def process_borehole_no_exceptions(
                 )
 
             return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             warnings.warn(f"Failed to process {report}: {e}")
             # Update status to indicate failure - all extractions failed
             status_logger.update_extraction_status(
@@ -1359,7 +1359,7 @@ def _consolidate_warning_files():
         try:
             status_df = pd.read_csv(status_file)
             all_statuses.extend(status_df.to_dict("records"))
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Skip files that can't be read
             continue
 
@@ -1381,7 +1381,7 @@ def _consolidate_warning_files():
     for status_file in status_files:
         try:
             status_file.unlink()
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Ignore errors when deleting files
             pass
 

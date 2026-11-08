@@ -5,7 +5,7 @@ import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple  # noqa: UP035
 
 import chardet
 import pandas as pd
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ParsedAGSTables:
+class ParsedAGSTables:  # noqa: D101
     tables: Dict[str, pd.DataFrame]
     headings: Dict[str, List[str]]
 
@@ -46,7 +46,7 @@ def load_ags_tables(
             return tables, headings
     except AGS4Error as exc:
         logger.debug("Standard AGS4 parsing failed for %s: %s", filepath, exc)
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
         # Don't log warning here - will only warn if fallback parser also fails
         logger.debug("Unexpected error parsing %s with python_ags4: %s", filepath, exc)
 

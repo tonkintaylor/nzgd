@@ -468,7 +468,7 @@ for nzgd_id in [129646]:
                         vs30 = spt_vs_profile.vs30
                         vs30_sd = spt_vs_profile.vs30_sd
                         error = np.nan
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         vs30 = np.nan
                         vs30_sd = np.nan
                         error = e

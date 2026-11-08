@@ -821,7 +821,7 @@ def get_xls_sheet_names(
         engine = other_engine
         try:
             sheet_names = pd.ExcelFile(file_path, engine=engine).sheet_names
-        except:
+        except:  # noqa: E722
             error_message = (
                 f"invalid_excel_file - file {file_path.name} is not a "
                 "valid xls or xlsx file"

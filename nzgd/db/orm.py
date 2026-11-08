@@ -397,13 +397,13 @@ class CPTMeasurements(BaseModel):
     depth_m = FloatField(null=True)
     """float: The depth at which the measurement was taken."""
 
-    qc_MPa = FloatField(null=True)
+    qc_MPa = FloatField(null=True)  # noqa: N815
     """float: The cone resistance at the specified depth."""
 
-    fs_MPa = FloatField(null=True)
+    fs_MPa = FloatField(null=True)  # noqa: N815
     """float: The sleeve friction at the specified depth."""
 
-    u2_MPa = FloatField(null=True)
+    u2_MPa = FloatField(null=True)  # noqa: N815
     """float: The pore water pressure at the specified depth."""
 
 

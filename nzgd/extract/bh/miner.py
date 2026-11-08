@@ -521,12 +521,12 @@ def process_borehole_no_exceptions(
     borehole_id, report = borehole_file_tuple
     try:
         return process_borehole(report, borehole_id)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         warnings.warn(f"Failed to data_extraction {report}: {e}")
         return None
 
 
-def serialize_reports(reports: list[SPTReport], conn: sqlite3.Connection):
+def serialize_reports(reports: list[SPTReport], conn: sqlite3.Connection):  # noqa: D103
     cursor = conn.cursor()
 
     # Insert SPTReports
