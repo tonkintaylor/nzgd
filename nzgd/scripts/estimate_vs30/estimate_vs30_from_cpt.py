@@ -72,7 +72,7 @@ def calc_vs30(
         vs30_std = cpt_vs_profile.vs30_sd
         error = np.nan
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Handle any exceptions by setting Vs30 and its standard deviation to NaN
         calc_vs30 = np.nan
         vs30_std = np.nan

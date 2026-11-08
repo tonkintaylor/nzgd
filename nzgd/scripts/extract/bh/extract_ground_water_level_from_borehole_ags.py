@@ -9,8 +9,9 @@ from pathlib import Path
 import natsort
 import numpy as np
 import pandas as pd
-from nzgd_data_extraction import info
 from tqdm import tqdm
+
+from nzgd_data_extraction import info
 
 
 class NewSectionStartFlag(enum.StrEnum):
@@ -20,7 +21,7 @@ class NewSectionStartFlag(enum.StrEnum):
     double_quote_group = '"GROUP",'
 
 
-def get_ground_water_levels(new_section_start_flag, ags_content):  # noqa: ANN001
+def get_ground_water_levels(new_section_start_flag, ags_content):
     """Extract the ground water levels from the WSTG section of an AGS file.
 
     Parameters

@@ -15,7 +15,5 @@ jobs:
       - run: pip install -r requirements.txt
       # Install deptry
       - run: pip install deptry
-      # Remove pyproject.toml so that deptry doesn't get confused
-      - run: rm pyproject.toml
       # Run deptry to check that all dependencies are present.
-      - run: deptry . --per-rule-ignores "DEP001=qcore|vs_calc|nzgd_data_extraction,DEP002=python-dotenv|tables|python-calamine|pyxlsb|geopandas|shapely|pyarrow|intervaltree"
+      - run: deptry .
