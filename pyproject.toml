@@ -16,6 +16,8 @@ dynamic = ["version", "dependencies"]
 dependencies = {file = ["requirements.txt"]}
 
 [tool.ruff.lint]
+# The ruff default rule set before ruff 0.16 widened it
+select = ["E4", "E7", "E9", "F"]
 extend-select = [
   # isort imports
   "I",
@@ -60,3 +62,27 @@ known-first-party = [
 "__init__.py" = ["D104"]
 # Ignore docstring errors in tests folder
 "tests/**.py" = ["D"]
+# Legacy: existing violations of the rules selected above; new code should comply
+"nzgd/db/orm.py" = ["N815"]
+"nzgd/extract/bh/ags_miner.py" = ["BLE001", "N815"]
+"nzgd/extract/bh/ags_parser.py" = ["BLE001", "D101", "UP035"]
+"nzgd/extract/bh/miner.py" = ["BLE001", "D103"]
+"nzgd/extract/cpt/tasks.py" = ["E722"]
+"nzgd/scripts/estimate_vs30/estimate_vs30_from_cpt.py" = ["BLE001"]
+"nzgd/scripts/estimate_vs30/estimate_vs30_from_spt.py" = ["BLE001"]
+"nzgd/scripts/extract/bh/extract_ground_water_level_from_borehole_ags.py" = ["ANN001"]
+
+[tool.deptry.per_rule_ignores]
+# Legacy: QuakeCoRE modules that requirements.txt does not install
+DEP001 = ["qcore", "vs_calc", "nzgd_data_extraction"]
+# Legacy: pandas loads pyarrow, python-calamine and pyxlsb by name; the others are not imported
+DEP002 = [
+  "python-dotenv",
+  "tables",
+  "python-calamine",
+  "pyxlsb",
+  "geopandas",
+  "shapely",
+  "pyarrow",
+  "intervaltree",
+]
